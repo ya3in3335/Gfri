@@ -1,0 +1,6 @@
+websockets>=13.0
+cryptography>=42.0
+# Optional: advertise the Bridge on the LAN so phones find it automatically
+zeroconf>=0.130
+# Optional: --output keyboard (types the UID into Green Access like a USB reader)
+pynput>=1.7

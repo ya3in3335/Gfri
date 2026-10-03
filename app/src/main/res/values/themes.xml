@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark by default: the window background matches the Compose dark theme to avoid a white flash on launch. -->
+    <style name="Theme.GreenAccesse" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ga_background_dark</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>

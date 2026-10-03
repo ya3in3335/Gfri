@@ -1,0 +1,120 @@
+name: Build APK
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test, lint and assemble debug APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager --install "platforms;android-36" "build-tools;35.0.0" "platform-tools" > /dev/null
+
+      - name: Set up Gradle (with cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --stacktrace
+
+      - name: Run Android lint
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/Green-Accesse-debug.apk dist/Green-Accesse-debug.apk
+          sha256sum dist/Green-Accesse-debug.apk | tee dist/Green-Accesse-debug.apk.sha256
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Green-Accesse-debug
+          path: |
+            dist/Green-Accesse-debug.apk
+            dist/Green-Accesse-debug.apk.sha256
+          if-no-files-found: error
+
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Green-Accesse-reports
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+            app/build/reports/lint-results-debug.*
+          if-no-files-found: ignore
+
+  interop:
+    name: Interoperability with reference Bridge
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install reference Bridge dependencies
+        run: pip install "websockets>=13" "cryptography>=42"
+
+      - name: Start reference Bridge
+        run: |
+          python bridge/reference/green_access_bridge.py --host 127.0.0.1 --port 8799 \
+            --pair-code 583921 --no-mdns --devices "$RUNNER_TEMP/devices.json" --gym-name "CI Gym" \
+            > "$RUNNER_TEMP/bridge.log" 2>&1 &
+          for i in $(seq 1 30); do nc -z 127.0.0.1 8799 && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/bridge.log"; exit 1
+
+      - name: Run interoperability test
+        env:
+          GA_INTEROP_BRIDGE: 127.0.0.1:8799
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest --tests '*ReferenceBridgeInteropTest*' --stacktrace
+          grep -q 'skipped="0"' app/build/test-results/testDebugUnitTest/TEST-*ReferenceBridgeInteropTest.xml
+
+      - name: Bridge log
+        if: always()
+        run: cat "$RUNNER_TEMP/bridge.log" || true

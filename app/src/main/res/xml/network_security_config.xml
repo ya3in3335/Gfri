@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Green Accesse talks only to the paired Green Access Bridge on the local network (ws://<pc-ip>:8787).
+  Gym PCs have no publicly trusted TLS certificate, so the WebSocket link is cleartext at the transport level.
+  Confidentiality, integrity and authenticity are provided by the application-layer protocol instead
+  (ECDH pairing + HMAC mutual authentication + AES-256-GCM per message; see docs/protocol.md).
+  The app makes no other network connections.
+-->
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <base-config cleartextTrafficPermitted="true" tools:ignore="InsecureBaseConfiguration">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
